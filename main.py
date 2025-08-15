@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
+from collections import OrderedDict
 
 import typer
 from rich.console import Console
@@ -234,6 +235,13 @@ def list(project: str):
 @app.command()
 def show(project: str, version: str, level: Optional[str] = None):
     """Show visible objects for a project & version."""
+    config = load_config()
+    if level is None and config.has_section("defaults") and config.has_option("defaults", "level"):
+        level = config.get("defaults", "level")
+    section_order = []
+    if config.has_section("display") and config.has_option("display", "sections"):
+        section_order = [s.strip() for s in config.get("display", "sections").split(",")]
+
     conn = get_conn()
     c = conn.cursor()
     params = [project]
@@ -259,17 +267,109 @@ def show(project: str, version: str, level: Optional[str] = None):
             if name not in latest or Version(ver) > Version(latest[name][0]):
                 latest[name] = (ver, section, hsh)
 
+    # Group by section with ordering
+    grouped = OrderedDict()
+    # Initialize keys in order
+    for sec in section_order:
+        grouped[sec] = []
+    # Add items to groups; those not in section_order go to a special key
+    other_key = None
+    for name, (ver, section, hsh) in latest.items():
+        key = section if section in grouped else None
+        if key is None:
+            if other_key is None:
+                other_key = "__other__"
+                grouped[other_key] = []
+            key = other_key
+        grouped[key].append((name, ver, section, hsh))
+
     table = Table(title=f"Visible objects for {project} @ {version} (level={level or 'all'})")
     table.add_column("Name")
     table.add_column("Version")
     table.add_column("Section")
     table.add_column("Preview")
 
-    for name, (ver, section, hsh) in sorted(latest.items()):
-        content = read_blob(hsh).decode().strip().splitlines()[0]
-        table.add_row(name, ver, section or "", content[:50] + ("..." if len(content) > 50 else ""))
+    first_section = True
+    for sec, items in grouped.items():
+        if not items:
+            continue
+        if not first_section:
+            table.add_row("", "", "", "")
+        first_section = False
+        for name, ver, section, hsh in sorted(items):
+            content = read_blob(hsh).decode().strip().splitlines()[0]
+            table.add_row(name, ver, section or "", content[:50] + ("..." if len(content) > 50 else ""))
 
     console.print(table)
+
+@app.command()
+def build(project: str, version: str, level: Optional[str] = None, out: Optional[str] = None):
+    """Assemble and export documentation for a project & version."""
+    import configparser
+    from rich.markdown import Markdown
+
+    config = load_config()
+    if level is None and config.has_section("defaults") and config.has_option("defaults", "level"):
+        level = config.get("defaults", "level")
+    section_order = []
+    if config.has_section("display") and config.has_option("display", "sections"):
+        section_order = [s.strip() for s in config.get("display", "sections").split(",")]
+
+    conn = get_conn()
+    c = conn.cursor()
+    params = [project]
+    level_filter = ""
+    if level:
+        level_filter = "AND audience = ?"
+        params.append(level)
+
+    c.execute(f"""
+    SELECT name, version, section, hash
+    FROM object
+    JOIN project ON object.project_id = project.id
+    WHERE project.name = ?
+    {level_filter}
+    """, tuple(params))
+    rows = c.fetchall()
+
+    latest = {}
+    target = Version(version)
+    for name, ver, section, hsh in rows:
+        if Version(ver) <= target:
+            if name not in latest or Version(ver) > Version(latest[name][0]):
+                latest[name] = (ver, section, hsh)
+
+    grouped = OrderedDict()
+    for sec in section_order:
+        grouped[sec] = []
+    other_key = None
+    for name, (ver, section, hsh) in latest.items():
+        key = section if section in grouped else None
+        if key is None:
+            if other_key is None:
+                other_key = "__other__"
+                grouped[other_key] = []
+            key = other_key
+        grouped[key].append((name, ver, section, hsh))
+
+    md_lines = []
+    for sec in grouped:
+        items = grouped[sec]
+        if not items:
+            continue
+        md_lines.append(f"# {sec if sec != '__other__' else 'Other'}")
+        for name, ver, section, hsh in sorted(items):
+            content = read_blob(hsh).decode().strip()
+            md_lines.append(content)
+        md_lines.append("")
+
+    md_text = "\n".join(md_lines).rstrip()
+
+    if out:
+        out_path = Path(out)
+        out_path.write_text(md_text)
+    else:
+        console.print(Markdown(md_text))
 
 
 if __name__ == "__main__":
