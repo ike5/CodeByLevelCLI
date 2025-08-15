@@ -1,2 +1,5 @@
 [display]
+sections = API Methods, Tutorials, Historical Notes
 
+[defaults]
+level = amateur
