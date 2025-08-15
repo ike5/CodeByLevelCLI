@@ -149,7 +149,8 @@ def init(name: str, description: str = "", sections: Optional[str] = None):
 @app.command()
 def add(
         name: str,
-        version: Optional[str] = typer.Option(None),
+        # version: Optional[str] = typer.Option(None),
+        version: str,
         section: Optional[str] = typer.Option(None),
         audience: Optional[str] = typer.Option(None),
         project: Optional[str] = typer.Option(None),
@@ -174,9 +175,9 @@ def add(
             raise typer.Exit()
 
     editor = (
-        os.environ.get("EDITOR")
-        or (config.get("defaults", "editor", fallback=None) if config.has_section("defaults") else None)
-        or "vi"
+            os.environ.get("EDITOR")
+            or (config.get("defaults", "editor", fallback=None) if config.has_section("defaults") else None)
+            or "vi"
     )
     temp_file = Path(".cbl_temp.md")
     temp_file.write_text(f"# Documentation for {name}\n\n")
@@ -212,7 +213,7 @@ def list(project: str):
     c.execute("""
               SELECT object.name, object.version, object.section, object.audience, object.created_at
               FROM object
-              JOIN project ON object.project_id = project.id
+                       JOIN project ON object.project_id = project.id
               WHERE project.name = ?
               ORDER BY object.name, object.version
               """, (project,))
@@ -300,6 +301,7 @@ def show(project: str, version: str, level: Optional[str] = None):
             table.add_row(name, ver, section or "", content[:50] + ("..." if len(content) > 50 else ""))
 
     console.print(table)
+
 
 @app.command()
 def build(project: str, version: str, level: Optional[str] = None, out: Optional[str] = None):
