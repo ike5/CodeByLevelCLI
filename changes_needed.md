@@ -1,0 +1,12 @@
+- Delete an object
+- Delete a project (with many warnings)
+- Display an object individually
+- Display all sections
+- Display by sections
+- Display by audience
+- Edit the object's section and audience
+- Make Created display optional by default (too much space)
+- Edit text for an object
+- Edit title for an object
+- Print all sections by default
+- Fix bug where it is not printed recording if done without a section
