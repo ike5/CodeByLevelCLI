@@ -1,13 +1,2 @@
-[name]
-value = Ike Maldonado
-
-[email]
-value = ike@example.com
-
-[defaults]
-version = 3.13.0
-level = amateur
-editor = vim
-
 [display]
-sections = API Methods, Historical Notes, Tutorials
+

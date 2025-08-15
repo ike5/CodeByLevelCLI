@@ -210,12 +210,11 @@ def list(project: str):
     conn = get_conn()
     c = conn.cursor()
     c.execute("""
-              SELECT name, version, section, audience, created_at
+              SELECT object.name, object.version, object.section, object.audience, object.created_at
               FROM object
-                  JOIN project
-              ON object.project_id = project.id
+              JOIN project ON object.project_id = project.id
               WHERE project.name = ?
-              ORDER BY name, version
+              ORDER BY object.name, object.version
               """, (project,))
     rows = c.fetchall()
 
@@ -251,7 +250,7 @@ def show(project: str, version: str, level: Optional[str] = None):
         params.append(level)
 
     c.execute(f"""
-    SELECT name, version, section, hash
+    SELECT object.name, object.version, object.section, object.hash
     FROM object
     JOIN project ON object.project_id = project.id
     WHERE project.name = ?
@@ -324,7 +323,7 @@ def build(project: str, version: str, level: Optional[str] = None, out: Optional
         params.append(level)
 
     c.execute(f"""
-    SELECT name, version, section, hash
+    SELECT object.name, object.version, object.section, object.hash
     FROM object
     JOIN project ON object.project_id = project.id
     WHERE project.name = ?
